@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Health Facilities Dashboard - Islamabad & Rawalpindi</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"/>
+
+    <style>
+        :root {
+            --primary-color: #007bff;        /* Blue for action/headings */
+            --secondary-color: #495057;      /* Dark grey for text */
+            --background-color: #e9ecef;     /* Light gray background */
+            --card-background: #ffffff;      /* White card background */
+            --border-color: #ced4da;         /* Light border */
+            --success-color: #28a745;        /* Green for success/features */
+        }
+
+        /* --- Global Styles --- */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--background-color);
+            color: var(--secondary-color);
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            text-align: left;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
+            margin-bottom: 25px;
+        }
+        
+        h2 {
+            color: var(--primary-color);
+            font-size: 1.4rem;
+        }
+        
+        /* --- Layout Grid --- */
+        #dashboard-layout {
+            display: grid;
+            grid-template-columns: 1fr; 
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        @media (min-width: 992px) {
+            #dashboard-layout {
+                grid-template-columns: 2fr 1fr; /* Map gets 2/3, list gets 1/3 */
+            }
+            #control-and-map-area {
+                grid-column: 1 / 2 !important; /* Forces map to 2/3 width on large screens */
+            }
+            #results-area {
+                grid-column: 2 / 3;
+            }
+        }
+
+        /* --- Panel and Control Styling --- */
+        .main-panel-box {
+            background-color: var(--card-background);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--border-color);
+        }
+
+        #controls {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap; 
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        label {
+            font-weight: 600;
+            color: var(--secondary-color);
+        }
+
+        select, button {
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            border: 1px solid var(--border-color);
+            transition: all 0.2s;
+        }
+
+        select {
+            background-color: var(--card-background);
+        }
+
+        #fetchDataButton {
+            background-color: var(--primary-color);
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+            border: none;
+        }
+
+        #fetchDataButton:hover:not(:disabled) {
+            background-color: #0056b3; /* Darker blue on hover */
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .loading-style { 
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        #status-message {
+            font-size: 0.9rem;
+            color: var(--secondary-color);
+            font-style: italic;
+        }
+
+        /* --- Map Styling --- */
+        #the-map-container {
+            height: 500px; /* Standard height for the map */
+            width: 100%;
+            margin-top: 10px;
+            display: none; 
+            border-radius: 8px;
+            overflow: hidden; /* Ensure map corners are rounded */
+        }
+        
+        /* --- Results List Styling --- */
+        #results-area {
+            height: fit-content;
+        }
+
+        #facility-list-wrapper {
+            max-height: 550px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+
+        .facility-item {
+            border: 1px solid var(--border-color);
+            background-color: #f8f9fa; /* Very light gray */
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            border-left: 5px solid var(--primary-color); /* Blue accent on the left */
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            transition: transform 0.1s;
+        }
+
+        .facility-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .facility-item h3 {
+            margin: 0 0 5px 0;
+            color: var(--primary-color);
+            font-size: 1.1rem;
+        }
+
+        .facility-item p {
+            margin: 2px 0;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <h1>Health Facilities Dashboard - Islamabad & Rawalpindi</h1>
+
+    <div id="dashboard-layout">
+        
+        <div id="control-and-map-area" class="main-panel-box" style="grid-column: 1 / -1;">
+            <h2>Data Controls and Map View</h2>
+            
+            <div id="controls">
+                <button id="fetchDataButton">Fetch Health Facilities</button>
+
+                <label for="typeFilter">Facility Type:</label>
+                <select id="typeFilter" disabled>
+                    <option value="ALL_TYPES">All types</option>
+                </select>
+
+                <label for="ownerFilter">Owner Type:</label>
+                <select id="ownerFilter" disabled>
+                    <option value="ALL_OWNERS">All ownerships</option>
+                </select>
+                
+                <label for="featureFilter">Special Feature:</label>
+                <select id="featureFilter" disabled>
+                    <option value="ALL_FEATURES">All features</option>
+                </select>
+                
+                <span id="status-message">Ready to load data.</span>
+            </div>
+            
+            <div id="the-map-container">
+                </div>
+        </div>
+
+        <div id="results-area" class="main-panel-box">
+            <h2>Facilities List</h2>
+            <div id="facility-list-wrapper">
+                <p>Click "Fetch Health Facilities" to load data from OpenStreetMap's Overpass API.</p>
+                <p>The search area is set to the combined region of **Islamabad** and **Rawalpindi**.</p>
+            </div>
+        </div>
+
+    </div> 
+    
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+
+    <script>
+
+        var myMapVariable; 
+        var allMarkers = []; 
+        var allFacilityData = []; 
+        var ALL_MAGIC_VALUE = "__ALL__"; // Changed to match original style better
+        
+        var DESIRED_SERVICE_TAGS = ['emergency', 'operating_centre', 'beds', 'dentist'];
+
+        // Getting all the HTML elements
+        var fetchButton = document.getElementById('fetchDataButton');
+        var statusSpan = document.getElementById('status-message');
+        var typeFilterDropdown = document.getElementById('typeFilter');
+        var ownerFilterDropdown = document.getElementById('ownerFilter');
+        var featureFilterDropdown = document.getElementById('featureFilter');
+
+        // Simple helper function to clean up tag values
+        function normalizeStringValue(value) {
+            return String(value || '').toLowerCase().trim();
+        }
+
+        function getFacilityOwnership(tagsObject) {
+            // Check if tagsObject is null/undefined before accessing properties
+            if (!tagsObject) return 'Unknown Ownership'; 
+            
+            // Try ownership tag first, then operator:type
+            if (tagsObject.ownership && String(tagsObject.ownership).trim().length) return tagsObject.ownership;
+            if (tagsObject['operator:type'] && String(tagsObject['operator:type']).trim().length) return tagsObject['operator:type'];
+            return 'Unknown Ownership';
+        }
+
+        // Function to check if a feature (like 'emergency') is marked 'yes'
+        function checkIfFacilityHasFeature(tags, featureKey) {
+            if (!tags) return false;
+            
+            var value = tags[featureKey];
+            if (!value) return false;
+            var normalized = normalizeStringValue(value);
+            return normalized === 'yes' || normalized === 'true' || normalized === '1';
+        }
+
+        // *** Event Listeners ***
+
+        fetchButton.addEventListener('click', function() {
+            fetchHealthFacilitiesData(); 
+        });
+
+        typeFilterDropdown.addEventListener('change', applyAllFiltersAndRedraw);
+        ownerFilterDropdown.addEventListener('change', applyAllFiltersAndRedraw);
+        featureFilterDropdown.addEventListener('change', applyAllFiltersAndRedraw);
+
+        // *** Main Filter Function ***
+
+        function applyAllFiltersAndRedraw() {
+            var selectedType = typeFilterDropdown.value;
+            var selectedOwner = ownerFilterDropdown.value;
+            var selectedFeature = featureFilterDropdown.value;
+
+            var filteredData = allFacilityData.filter(function(facility) {
+                // Ensure tags exist before trying to access them
+                var tags = facility.tags || {}; 
+                
+                // 1. Check Type
+                var typeMatches = (selectedType === ALL_MAGIC_VALUE) || 
+                                  (normalizeStringValue(tags.amenity) === normalizeStringValue(selectedType));
+                
+                // 2. Check Ownership (getFacilityOwnership handles null tags)
+                var ownerValue = getFacilityOwnership(tags);
+                var ownerMatches = (selectedOwner === ALL_MAGIC_VALUE) || 
+                                   (normalizeStringValue(ownerValue) === normalizeStringValue(selectedOwner));
+                
+                // 3. Check Feature
+                var featureMatches = (selectedFeature === ALL_MAGIC_VALUE) || 
+                                     checkIfFacilityHasFeature(tags, selectedFeature);
+                
+                return typeMatches && ownerMatches && featureMatches; 
+            });
+
+            plotFacilitiesOnMap(filteredData);
+            displayFacilityList(filteredData);
+
+            // Update the status message
+            var parts = [];
+            if (selectedType !== ALL_MAGIC_VALUE) parts.push(`type: ${selectedType}`);
+            if (selectedOwner !== ALL_MAGIC_VALUE) parts.push(`owner: ${selectedOwner}`);
+            if (selectedFeature !== ALL_MAGIC_VALUE) parts.push(`feature: ${selectedFeature.replace(/_/g, ' ')}`);
+            
+            var whatWeAreShowing = parts.length ? parts.join(' AND ') : 'ALL facilities';
+            setLoadingState(false, `Showing ${filteredData.length} facilities (Filter: ${whatWeAreShowing}).`);
+        }
+
+        // Function to handle the loading status
+        function setLoadingState(isCurrentlyLoading, message) {
+            if (isCurrentlyLoading) {
+                fetchButton.classList.add('loading-style');
+                fetchButton.disabled = true;
+                statusSpan.textContent = message || "Loading, please wait...";
+            } else {
+                fetchButton.classList.remove('loading-style');
+                fetchButton.disabled = false;
+                statusSpan.textContent = message || "";
+            }
+        }
+
+        // *** Data Fetching ***
+        function fetchHealthFacilitiesData() {
+            setLoadingState(true, "Fetching data from Overpass API...");
+
+            // Bounding Boxes for Islamabad and Rawalpindi
+            var bbox_isb = "33.55,72.80,33.85,73.20"; 
+            var bbox_rwp = "33.50,72.80,33.70,73.20"; 
+
+            var filterAmenityTypes = "hospital|clinic|doctor|dentist|pharmacy|veterinary|medical_centre|health_center|nursing_home|rehabilitation";
+
+            var overpassQuery = `
+                [out:json][timeout:60];
+                (
+                    // Islamabad
+                    node["amenity"~"${filterAmenityTypes}"](${bbox_isb});
+                    way["amenity"~"${filterAmenityTypes}"](${bbox_isb});
+                    relation["amenity"~"${filterAmenityTypes}"](${bbox_isb});
+                    
+                    // Rawalpindi
+                    node["amenity"~"${filterAmenityTypes}"](${bbox_rwp});
+                    way["amenity"~"${filterAmenityTypes}"](${bbox_rwp});
+                    relation["amenity"~"${filterAmenityTypes}"](${bbox_rwp});
+                );
+                out body qt;
+                >;
+                out skel qt;
+            `;
+
+            var queryURL =
+                "https://overpass-api.de/api/interpreter?data=" +
+                encodeURIComponent(overpassQuery);
+
+            fetch(queryURL)
+                .then(function(response) {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(function(data) {
+                    var allElements = Array.isArray(data.elements) ? data.elements : [];
+                    var facilitiesWithLocation = allElements.filter(function(e) {
+                        return (e.type === 'node' || e.type === 'way' || e.type === 'relation') && (e.lat || e.center);
+                    });
+
+                    if (facilitiesWithLocation.length === 0) {
+                        document.getElementById('facility-list-wrapper').innerHTML =
+                            '<p>No health facilities were found in the specified area.</p>';
+                        showMapContainer(false);
+                        setLoadingState(false, "No results found.");
+                        disableAndClearFilterDropdowns();
+                        return;
+                    }
+
+                    allFacilityData = facilitiesWithLocation; 
+
+                    // Populate filters
+                    populateTypeDropdown(allFacilityData);
+                    populateOwnershipDropdown(allFacilityData);
+                    populateFeatureDropdown(allFacilityData);
+
+                    showMapContainer(true);
+                    applyAllFiltersAndRedraw();
+                })
+                .catch(function(error) {
+                    console.error('Error fetching data:', error);
+                    document.getElementById('facility-list-wrapper').innerHTML =
+                        `<p>Error fetching data: ${error.message}. Please check console for details.</p>`;
+                    showMapContainer(false);
+                    setLoadingState(false, "Data fetch failed.");
+                    disableAndClearFilterDropdowns();
+                });
+        }
+        
+        function disableAndClearFilterDropdowns() {
+            typeFilterDropdown.disabled = true;
+            typeFilterDropdown.innerHTML = `<option value="${ALL_MAGIC_VALUE}">All types</option>`;
+            ownerFilterDropdown.disabled = true;
+            ownerFilterDropdown.innerHTML = `<option value="${ALL_MAGIC_VALUE}">All ownerships</option>`;
+            featureFilterDropdown.disabled = true;
+            featureFilterDropdown.innerHTML = `<option value="${ALL_MAGIC_VALUE}">All features</option>`;
+        }
+
+        // *** Dropdown Population Functions ***
+
+        function populateTypeDropdown(features) {
+            var uniqueTypes = new Set();
+            for (var i = 0; i < features.length; i++) {
+                var amenityType = features[i].tags && features[i].tags.amenity;
+                var cleanType = String(amenityType || '').trim();
+                if (cleanType) uniqueTypes.add(cleanType);
+            }
+
+            var sortedTypes = Array.from(uniqueTypes).sort();
+            var optionsHTML = `<option value="${ALL_MAGIC_VALUE}">All types</option>`;
+            for (var j = 0; j < sortedTypes.length; j++) {
+                var type = sortedTypes[j];
+                optionsHTML += `<option value="${type}">${type}</option>`;
+            }
+            typeFilterDropdown.innerHTML = optionsHTML;
+            typeFilterDropdown.disabled = false;
+            typeFilterDropdown.value = ALL_MAGIC_VALUE;
+        }
+
+        function populateOwnershipDropdown(features) {
+            var uniqueOwners = new Set();
+            for (var k = 0; k < features.length; k++) {
+                // IMPORTANT: Pass facility.tags, which might be undefined/null
+                var owner = String(getFacilityOwnership(features[k].tags) || '').trim();
+                if (owner && owner !== 'Unknown Ownership') uniqueOwners.add(owner);
+            }
+
+            var sortedOwners = Array.from(uniqueOwners).sort();
+            var optionsHTML = `<option value="${ALL_MAGIC_VALUE}">All ownerships</option>`;
+            for (var l = 0; l < sortedOwners.length; l++) {
+                var owner = sortedOwners[l];
+                optionsHTML += `<option value="${owner}">${owner}</option>`;
+            }
+            ownerFilterDropdown.innerHTML = optionsHTML;
+            ownerFilterDropdown.disabled = false;
+            ownerFilterDropdown.value = ALL_MAGIC_VALUE;
+        }
+        
+        function populateFeatureDropdown(features) {
+            var featuresFound = new Set();
+            for (var m = 0; m < features.length; m++) {
+                for (var n = 0; n < DESIRED_SERVICE_TAGS.length; n++) {
+                    var tag = DESIRED_SERVICE_TAGS[n];
+                    if (checkIfFacilityHasFeature(features[m].tags, tag)) {
+                        featuresFound.add(tag);
+                    }
+                }
+            }
+            
+            var sortedFeatures = Array.from(featuresFound).sort();
+            var optionsHTML = `<option value="${ALL_MAGIC_VALUE}">All features</option>`;
+            for (var p = 0; p < sortedFeatures.length; p++) {
+                var featureTag = sortedFeatures[p];
+                optionsHTML += `<option value="${featureTag}">${featureTag.replace(/_/g, ' ')}</option>`;
+            }
+            
+            featureFilterDropdown.innerHTML = optionsHTML;
+            featureFilterDropdown.disabled = sortedFeatures.length === 0;
+            featureFilterDropdown.value = ALL_MAGIC_VALUE;
+        }
+
+
+        // *** Map and Address Utils ***
+
+        function getLatLonFromFeature(feature) {
+            if (typeof feature.lat === 'number' && typeof feature.lon === 'number') {
+                return { lat: feature.lat, lon: feature.lon };
+            }
+            if (feature.center && typeof feature.center.lat === 'number' && typeof feature.center.lon === 'number') {
+                return { lat: feature.center.lat, lon: feature.center.lon };
+            }
+            return null; 
+        }
+
+        function makeNiceAddressString(tagsObject) {
+            if (!tagsObject) return 'Address data not available';
+            
+            var parts = [];
+            if (tagsObject['addr:housename']) parts.push(tagsObject['addr:housename']);
+            var streetPart = [tagsObject['addr:housenumber'], tagsObject['addr:street']].filter(Boolean).join(' ');
+            if (streetPart) parts.push(streetPart);
+            if (tagsObject['addr:neighbourhood']) parts.push(tagsObject['addr:neighbourhood']);
+            if (tagsObject['addr:suburb']) parts.push(tagsObject['addr:suburb']);
+            if (tagsObject['addr:city']) parts.push(tagsObject['addr:city']);
+            if (tagsObject['addr:postcode']) parts.push(tagsObject['addr:postcode']);
+            if (tagsObject['addr:full']) parts.push(tagsObject['addr:full']);
+            return parts.length ? parts.join(', ') : 'Address not available in map data';
+        }
+
+        function displayFacilityList(data) {
+            var resultsDiv = document.getElementById('facility-list-wrapper');
+            resultsDiv.innerHTML = ''; 
+
+            if (data.length === 0) {
+                resultsDiv.innerHTML = '<p>No facilities match your current filters.</p>';
+                return;
+            }
+
+            data.forEach(function(feature) {
+                var tags = feature.tags || {};
+                var facilityName = tags.name || 'Unnamed Facility';
+                var facilityType = tags.amenity || 'Unknown Type';
+                
+                var div = document.createElement('div');
+                div.className = 'facility-item';
+                div.innerHTML = `
+                    <h3>${facilityName}</h3>
+                    <p><strong>Type:</strong> ${facilityType}</p>
+                    <p>Details in map pin.</p>
+                `;
+                resultsDiv.appendChild(div);
+            });
+        }
+
+        function plotFacilitiesOnMap(data) {
+            removeOldMarkers(); 
+            var mapBounds = L.latLngBounds([]); 
+
+            data.forEach(function(feature) {
+                var location = getLatLonFromFeature(feature);
+                if (!location) return; 
+
+                var tags = feature.tags || {};
+                var name = tags.name || 'Unnamed Facility';
+                var type = tags.amenity || 'Unknown';
+                var address = makeNiceAddressString(tags);
+                var ownership = getFacilityOwnership(tags);
+                
+                var featuresList = DESIRED_SERVICE_TAGS.filter(function(tag) {
+                    return checkIfFacilityHasFeature(tags, tag);
+                }).map(function(t) {
+                    return t.replace(/_/g, ' ');
+                }).join(', ');
+
+                var popupContent = `
+                    <strong>${name}</strong><br/>
+                    Type: ${type}<br/>
+                    Owner: ${ownership}<br/>
+                    ${featuresList ? `Special Features: ${featuresList}<br/>` : ''}
+                    Address: ${address}
+                `;
+
+                var marker = L.marker([location.lat, location.lon]).addTo(myMapVariable)
+                    .bindPopup(popupContent);
+
+                allMarkers.push(marker);
+                mapBounds.extend([location.lat, location.lon]); 
+            });
+
+            if (mapBounds.isValid()) {
+                myMapVariable.fitBounds(mapBounds.pad(0.05));
+            } else if (myMapVariable) {
+                myMapVariable.setView([33.68, 73.05], 11);
+            }
+        }
+
+        function removeOldMarkers() {
+            allMarkers.forEach(function(m) {
+                m.remove(); 
+            });
+            allMarkers = []; 
+        }
+
+        function initializeMyMap() {
+            if (!myMapVariable) {
+                myMapVariable = L.map('the-map-container').setView([33.68, 73.05], 11); 
+                
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                }).addTo(myMapVariable);
+                
+                L.control.attribution({
+                    prefix: '<div style="font-size: 10px; color: #888;">Map View: Health Facilities Dashboard</div>'
+                }).addTo(myMapVariable);
+            }
+        }
+
+        function showMapContainer(shouldShow) {
+            var mapContainerDiv = document.getElementById('the-map-container');
+            if (shouldShow) {
+                mapContainerDiv.style.display = 'block'; 
+                initializeMyMap(); 
+                if(myMapVariable) {
+                    setTimeout(function() { myMapVariable.invalidateSize(); }, 0);
+                }
+            } else {
+                mapContainerDiv.style.display = 'none'; 
+            }
+        }
+    </script>
+</body>
+</html>
