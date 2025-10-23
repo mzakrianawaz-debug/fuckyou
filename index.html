@@ -3,406 +3,716 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Health Facilities Dashboard - Islamabad & Rawalpindi</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"/>
-
+    <title>Twin Cities Health Facilities | Home · Map · About</title>
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css">
+    <!-- Markercluster CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css">
     <style>
-        :root {
-            --primary-color: #007bff;        /* Blue for action/headings */
-            --secondary-color: #495057;      /* Dark grey for text */
-            --background-color: #e9ecef;     /* Light gray background */
-            --card-background: #ffffff;      /* White card background */
-            --border-color: #ced4da;         /* Light border */
-            --success-color: #28a745;        /* Green for success/features */
+        /* Map panel focus */
+        #control-and-map-area.active-map {
+            box-shadow: 0 0 0 4px rgba(59,130,246,0.4);
+            border-color: rgba(59,130,246,0.5);
+        }
+        /* nicer scrollbar */
+        #facility-list-wrapper::-webkit-scrollbar { width: 8px; }
+        #facility-list-wrapper::-webkit-scrollbar-thumb { background-color: #9ca3af; border-radius: 4px; }
+        .leaflet-container { height: 600px; width: 100%; }
+        /* simple active nav underline */
+        .nav-active { position: relative; }
+        .nav-active::after {
+            content:""; position:absolute; left:0; right:0; bottom:-6px; height:3px;
+            background:#bfdbfe; border-radius:9999px;
         }
 
-        /* --- Global Styles --- */
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--background-color);
-            color: var(--secondary-color);
-            margin: 0;
-            padding: 20px;
+        /* Custom marker CSS */
+        .marker-pin {
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%) rotate(45deg);
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+            transition: transform 0.2s ease-out, box-shadow 0.2s ease-out; /* Added transition */
         }
-
-        h1 {
-            color: var(--primary-color);
-            text-align: left;
-            border-bottom: 2px solid var(--border-color);
-            padding-bottom: 10px;
-            margin-bottom: 25px;
+        .marker-pin i {
+            transform: rotate(-45deg);
         }
-        
-        h2 {
-            color: var(--primary-color);
-            font-size: 1.4rem;
-        }
-        
-        /* --- Layout Grid --- */
-        #dashboard-layout {
-            display: grid;
-            grid-template-columns: 1fr; 
-            gap: 20px;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        @media (min-width: 992px) {
-            #dashboard-layout {
-                grid-template-columns: 2fr 1fr; /* Map gets 2/3, list gets 1/3 */
-            }
-            #control-and-map-area {
-                grid-column: 1 / 2 !important; /* Forces map to 2/3 width on large screens */
-            }
-            #results-area {
-                grid-column: 2 / 3;
-            }
-        }
-
-        /* --- Panel and Control Styling --- */
-        .main-panel-box {
-            background-color: var(--card-background);
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            border: 1px solid var(--border-color);
-        }
-
-        #controls {
-            display: flex;
-            align-items: center;
-            flex-wrap: wrap; 
-            gap: 15px;
-            margin-bottom: 15px;
-        }
-
-        label {
-            font-weight: 600;
-            color: var(--secondary-color);
-        }
-
-        select, button {
-            padding: 10px 15px;
-            border-radius: 6px;
-            font-size: 0.9rem;
-            border: 1px solid var(--border-color);
-            transition: all 0.2s;
-        }
-
-        select {
-            background-color: var(--card-background);
-        }
-
-        #fetchDataButton {
-            background-color: var(--primary-color);
-            color: white;
-            cursor: pointer;
-            font-weight: 600;
-            border: none;
-        }
-
-        #fetchDataButton:hover:not(:disabled) {
-            background-color: #0056b3; /* Darker blue on hover */
-        }
-
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .loading-style { 
-            opacity: 0.7;
-            pointer-events: none;
-        }
-
-        #status-message {
-            font-size: 0.9rem;
-            color: var(--secondary-color);
-            font-style: italic;
-        }
-
-        /* --- Map Styling --- */
-        #the-map-container {
-            height: 500px; /* Standard height for the map */
-            width: 100%;
-            margin-top: 10px;
-            display: none; 
-            border-radius: 8px;
-            overflow: hidden; /* Ensure map corners are rounded */
-        }
-        
-        /* --- Results List Styling --- */
-        #results-area {
-            height: fit-content;
-        }
-
-        #facility-list-wrapper {
-            max-height: 550px;
-            overflow-y: auto;
-            padding-right: 10px;
-        }
-
+        /* Highlight style for list items */
         .facility-item {
-            border: 1px solid var(--border-color);
-            background-color: #f8f9fa; /* Very light gray */
-            padding: 15px;
-            margin-bottom: 10px;
-            border-radius: 6px;
-            border-left: 5px solid var(--primary-color); /* Blue accent on the left */
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-            transition: transform 0.1s;
+            transition: all 0.2s ease-out;
+            border-left-width: 4px;
+            border-left-style: solid;
         }
-
-        .facility-item:hover {
+        .facility-item-highlight {
+            background-color: #f0f9ff; /* Blue 50 */
             transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        }
-
-        .facility-item h3 {
-            margin: 0 0 5px 0;
-            color: var(--primary-color);
-            font-size: 1.1rem;
-        }
-
-        .facility-item p {
-            margin: 2px 0;
-            font-size: 0.9rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+            border-left-color: #3b82f6 !important; /* Blue 500 override */
         }
     </style>
 </head>
-<body>
-    <h1>Health Facilities Dashboard - Islamabad & Rawalpindi</h1>
+<body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col font-sans">
 
-    <div id="dashboard-layout">
-        
-        <div id="control-and-map-area" class="main-panel-box" style="grid-column: 1 / -1;">
-            <h2>Data Controls and Map View</h2>
-            
-            <div id="controls">
-                <button id="fetchDataButton">Fetch Health Facilities</button>
+    <!-- Header & Navigation -->
+    <header class="bg-blue-700 text-white shadow-lg sticky top-0 z-20">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <h1 class="text-xl sm:text-3xl font-extrabold tracking-tight">
+                <span class="text-blue-200">Twin Cities (ISB/RWP)</span> Health Facilities
+            </h1>
 
-                <label for="typeFilter">Facility Type:</label>
-                <select id="typeFilter" disabled>
-                    <option value="ALL_TYPES">All types</option>
-                </select>
+            <!-- Top Nav -->
+            <nav class="flex items-center gap-4 text-sm sm:text-base">
+                <button data-nav="home" class="nav-link font-semibold hover:text-blue-200 transition">Home</button>
+                <button data-nav="map" class="nav-link font-semibold hover:text-blue-200 transition">Map</button>
+                <button data-nav="about" class="nav-link font-semibold hover:text-blue-200 transition">About</button>
+            </nav>
+        </div>
+    </header>
 
-                <label for="ownerFilter">Owner Type:</label>
-                <select id="ownerFilter" disabled>
-                    <option value="ALL_OWNERS">All ownerships</option>
-                </select>
-                
-                <label for="featureFilter">Special Feature:</label>
-                <select id="featureFilter" disabled>
-                    <option value="ALL_FEATURES">All features</option>
-                </select>
-                
-                <span id="status-message">Ready to load data.</span>
-            </div>
-            
-            <div id="the-map-container">
+    <!-- MAIN CONTAINER -->
+    <main class="flex-grow w-full">
+        <!-- HOME SECTION -->
+        <section id="home-section" class="py-10 border-b max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid lg:grid-cols-2 gap-8 items-center">
+                <div>
+                    <h2 class="text-3xl sm:text-4xl font-extrabold text-blue-800 leading-tight">
+                        Find care faster in Islamabad & Rawalpindi
+                    </h2>
+                    <p class="mt-3 text-gray-700">
+                        Explore hospitals, clinics, pharmacies, and more—directly from OpenStreetMap data.
+                        Filter by type, ownership, or features like <em>emergency</em> to see exactly what you need.
+                    </p>
+                    <div class="mt-6 flex flex-wrap gap-3">
+                        <button data-go="map" class="inline-flex items-center justify-center px-5 py-2.5 rounded-lg bg-green-600 text-white font-semibold shadow-lg hover:bg-green-700">
+                            <i class="fas fa-map-location-dot mr-2"></i> Open Map Dashboard
+                        </button>
+                        <button data-go="about" class="inline-flex items-center justify-center px-5 py-2.5 rounded-lg bg-white text-blue-700 font-semibold shadow hover:bg-blue-50 border border-blue-200">
+                            Learn More
+                        </button>
+                    </div>
+
+                    <!-- Quick Tips -->
+                    <div class="mt-8 bg-blue-50 border border-blue-200 rounded-xl p-5">
+                        <h3 class="text-blue-800 font-bold text-lg mb-2">Quick tips</h3>
+                        <ul class="list-disc pl-5 space-y-1 text-gray-700">
+                            <li>Select **City** first, then click **Fetch Data**.</li>
+                            <li>Use **Type / Ownership / Feature** to refine results.</li>
+                            <li>Click a facility in the list to zoom to it on the map.</li>
+                            <li>**Hover over** the list items or map markers to see the interactive highlight!</li>
+                        </ul>
+                    </div>
                 </div>
-        </div>
 
-        <div id="results-area" class="main-panel-box">
-            <h2>Facilities List</h2>
-            <div id="facility-list-wrapper">
-                <p>Click "Fetch Health Facilities" to load data from OpenStreetMap's Overpass API.</p>
-                <p>The search area is set to the combined region of **Islamabad** and **Rawalpindi**.</p>
+                <!-- Home Cards -->
+                <div class="grid sm:grid-cols-2 gap-4">
+                    <div class="p-5 bg-white rounded-xl shadow-md border">
+                        <div class="text-sm uppercase tracking-wide text-gray-500">Coverage</div>
+                        <div class="mt-2 text-2xl font-bold text-blue-700">ISB & RWP</div>
+                        <p class="text-gray-600 mt-1">Twin Cities bounding boxes curated for better search.</p>
+                    </div>
+                    <div class="p-5 bg-white rounded-xl shadow-md border">
+                        <div class="text-sm uppercase tracking-wide text-gray-500">Source</div>
+                        <div class="mt-2 text-2xl font-bold text-blue-700">OpenStreetMap</div>
+                        <p class="text-gray-600 mt-1">Live Overpass API queries with Leaflet maps.</p>
+                    </div>
+                    <div class="p-5 bg-white rounded-xl shadow-md border">
+                        <div class="text-sm uppercase tracking-wide text-gray-500">Performance</div>
+                        <div class="mt-2 text-2xl font-bold text-blue-700">Clustering</div>
+                        <p class="text-gray-600 mt-1">Markers are clustered for faster rendering.</p>
+                    </div>
+                    <div class="p-5 bg-white rounded-xl shadow-md border">
+                        <div class="text-sm uppercase tracking-wide text-gray-500">Usability</div>
+                        <div class="mt-2 text-2xl font-bold text-blue-700">Interactive</div>
+                        <p class="text-gray-600 mt-1">List and map sync via hover and click events.</p>
+                    </div>
+                </div>
             </div>
-        </div>
+        </section>
 
-    </div> 
-    
+        <!-- MAP / DASHBOARD SECTION -->
+        <section id="map-section" class="hidden max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+            <div id="dashboard-layout" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Map and Controls Area -->
+                <div id="control-and-map-area" class="lg:col-span-2 bg-white p-6 rounded-xl shadow-2xl border border-gray-200 transition duration-300">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-blue-700 font-bold text-2xl mb-4 border-b pb-2">Map View & Data Controls</h2>
+                        <button data-go="home" class="text-sm text-blue-700 hover:underline"><i class="fas fa-home mr-1"></i> Back to Home</button>
+                    </div>
+
+                    <!-- REVISED: Controls use a responsive grid for consistent alignment -->
+                    <div id="controls" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6 p-3 bg-blue-50 rounded-xl" aria-label="Data Filters">
+
+                        <!-- City Filter -->
+                        <div class="flex flex-col">
+                            <label for="cityFilter" class="font-medium text-gray-700 mb-1">City:</label>
+                            <select id="cityFilter" class="px-3 py-2 rounded-lg border border-blue-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                                <!-- Populated by JS -->
+                            </select>
+                        </div>
+                        
+                        <!-- New Search Input (Spans 1 column on all views, aligns nicely with other filters) -->
+                        <div class="flex flex-col">
+                            <label for="nameSearch" class="font-medium text-gray-700 mb-1">Search Name:</label>
+                            <input type="text" id="nameSearch" placeholder="Facility name..." class="px-3 py-2 rounded-lg border border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500" disabled>
+                        </div>
+
+                        <div class="flex flex-col">
+                            <label for="typeFilter" class="font-medium text-gray-700 mb-1">Type:</label>
+                            <select id="typeFilter" class="px-3 py-2 rounded-lg border border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500" disabled>
+                                <option value="__ALL__">All types</option>
+                            </select>
+                        </div>
+
+                        <div class="flex flex-col">
+                            <label for="ownerFilter" class="font-medium text-gray-700 mb-1">Ownership:</label>
+                            <select id="ownerFilter" class="px-3 py-2 rounded-lg border border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500" disabled>
+                                <option value="__ALL__">All ownerships</option>
+                            </select>
+                        </div>
+
+                        <div class="flex flex-col">
+                            <label for="featureFilter" class="font-medium text-gray-700 mb-1">Feature:</label>
+                            <select id="featureFilter" class="px-3 py-2 rounded-lg border border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500" disabled>
+                                <option value="__ALL__">All features</option>
+                            </select>
+                        </div>
+
+                        <!-- Sort Filter -->
+                        <div class="flex flex-col">
+                            <label for="sortFilter" class="font-medium text-gray-700 mb-1">Sort By:</label>
+                            <select id="sortFilter" class="px-3 py-2 rounded-lg border border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                                <option value="name_asc">Name (A-Z)</option>
+                                <option value="type_asc">Type (A-Z)</option>
+                            </select>
+                        </div>
+
+                        <!-- Fetch Data Button spans 1 column on large screens, or 2 columns on small screens -->
+                        <button id="fetchDataButton"
+                                class="bg-green-600 text-white px-5 py-2 rounded-lg font-semibold shadow-lg hover:bg-green-700 transition duration-200 disabled:opacity-50 disabled:cursor-wait sm:col-span-1 lg:col-span-1">
+                            <i class="fas fa-magnifying-glass mr-2"></i> Fetch Data / Apply City Filter
+                        </button>
+                        
+                        <!-- Reset Filters Button spans 1 column on all views -->
+                        <button id="resetFiltersButton"
+                                class="bg-gray-200 text-gray-700 px-5 py-2 rounded-lg font-semibold shadow hover:bg-gray-300 transition duration-200 lg:col-span-1">
+                            <i class="fas fa-filter-circle-xmark mr-2"></i> Reset Filters
+                        </button>
+
+                        <!-- Status Message spans all columns -->
+                        <span id="status-message" class="text-sm text-gray-600 italic sm:col-span-2 lg:col-span-3">Select a city and click the button to load data from OpenStreetMap.</span>
+                    </div>
+
+                    <!-- NEW: Data Summary Panel -->
+                    <div id="data-summary-panel" class="bg-white p-4 mb-4 rounded-xl shadow border border-gray-200 hidden">
+                        <!-- Content populated by JS -->
+                    </div>
+
+
+                    <!-- Splash (shown until data fetch) -->
+                    <div id="initial-splash-screen" class="bg-blue-100 p-8 rounded-xl shadow-inner border-2 border-blue-300 text-center flex flex-col justify-center items-center h-[600px]">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-blue-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19h12M9 19c0 1.105-1.12 2-2.5 2S4 20.105 4 19s1.12-2 2.5-2S9 17.895 9 19zm12 0c0 1.105-1.12 2-2.5 2s-2.5-1.105-2.5-2 1.12-2 2.5-2S21 17.895 21 19zM9 6c0 1.105-1.12 2-2.5 2S4 7.105 4 6s1.12-2 2.5-2S9 4.895 9 6z" />
+                        </svg>
+                        <h3 class="text-3xl font-extrabold text-blue-800 mb-2">Welcome to the Health Facilities Explorer</h3>
+                        <p class="text-lg text-gray-700">Get started by selecting your target area in the **"City"** dropdown above and clicking the green **"Fetch Data"** button.</p>
+                        <p class="text-md text-blue-600 mt-4">Data is pulled directly from OpenStreetMap.</p>
+                    </div>
+
+                    <!-- Map Container -->
+                    <div id="the-map-container" class="leaflet-container w-full rounded-xl overflow-hidden shadow-inner border border-gray-300 transition duration-300" style="display: none;">
+                        <!-- Leaflet map renders here -->
+                    </div>
+                </div>
+
+                <!-- Results List Area -->
+                <div id="results-area" class="lg:col-span-1 bg-white p-6 rounded-xl shadow-2xl border border-gray-200">
+                    <h2 class="text-blue-700 font-bold text-2xl mb-4 border-b pb-2">Facility List</h2>
+                    <div id="facility-list-wrapper" class="max-h-[600px] overflow-y-auto pr-2">
+                        <p class="text-gray-500">Facilities will appear here after fetching the data.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ABOUT SECTION -->
+        <section id="about-section" class="hidden max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+            <div class="bg-white p-8 rounded-xl shadow-2xl border border-gray-200">
+                <h2 class="text-3xl font-extrabold text-blue-800">About this project</h2>
+                <p class="mt-4 text-gray-700">
+                    This dashboard helps residents and planners discover health facilities across Islamabad and Rawalpindi.
+                    It uses the Overpass API to query OpenStreetMap for amenities such as hospitals, clinics, pharmacies,
+                    and more, then visualizes them with Leaflet.
+                </p>
+                <div class="mt-6 grid sm:grid-cols-2 gap-4">
+                    <div class="bg-gray-50 border rounded-xl p-5 shadow-sm">
+                        <h3 class="text-lg font-semibold text-blue-700">Tech Stack</h3>
+                        <ul class="list-disc pl-5 mt-2 text-gray-700 space-y-1">
+                            <li>Leaflet.js for interactive maps</li>
+                            <li>**Leaflet.markercluster** for performance</li>
+                            <li>OpenStreetMap + Overpass API for data</li>
+                            <li>Tailwind CSS for responsive styling</li>
+                            <li>Vanilla JS for filtering & routing</li>
+                        </ul>
+                    </div>
+                    <div class="bg-gray-50 border rounded-xl p-5 shadow-sm">
+                        <h3 class="text-lg font-semibold text-blue-700">Enhancements Implemented</h3>
+                        <ul class="list-disc pl-5 mt-2 text-gray-700 space-y-1">
+                            <li>Performance boost via Marker Clustering.</li>
+                            <li>**Interactive Highlighting** (List & Map sync).</li>
+                            <li>Sorting by Name and Type.</li>
+                            <li>"Copy Coordinates" utility feature.</li>
+                            <li>**Data Summary Panel** for real-time statistics.</li>
+                            <li>**Reset Filters Button** for quick cleanup.</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="mt-8">
+                    <button data-go="map" class="inline-flex items-center justify-center px-5 py-2.5 rounded-lg bg-green-600 text-white font-semibold shadow-lg hover:bg-green-700">
+                        <i class="fas fa-map-location-dot mr-2"></i> Open Map Dashboard
+                    </button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="mt-8 py-4 bg-gray-800 text-white text-center">
+        <p class="text-sm">&copy; 2025 Twin Cities Health Dashboard | Built with Leaflet.js and OpenStreetMap Data.</p>
+    </footer>
+
+    <!-- Scripts -->
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
 
     <script>
+        /* ----------------------- SIMPLE SPA ROUTER ----------------------- */
+        const sections = {
+            home: document.getElementById('home-section'),
+            map: document.getElementById('map-section'),
+            about: document.getElementById('about-section')
+        };
+        const navLinks = [...document.querySelectorAll('[data-nav]')];
+        const goLinks = [...document.querySelectorAll('[data-go]')];
 
-        var myMapVariable; 
-        var allMarkers = []; 
-        var allFacilityData = []; 
-        var ALL_MAGIC_VALUE = "__ALL__"; // Changed to match original style better
-        
-        var DESIRED_SERVICE_TAGS = ['emergency', 'operating_centre', 'beds', 'dentist'];
-
-        // Getting all the HTML elements
-        var fetchButton = document.getElementById('fetchDataButton');
-        var statusSpan = document.getElementById('status-message');
-        var typeFilterDropdown = document.getElementById('typeFilter');
-        var ownerFilterDropdown = document.getElementById('ownerFilter');
-        var featureFilterDropdown = document.getElementById('featureFilter');
-
-        // Simple helper function to clean up tag values
-        function normalizeStringValue(value) {
-            return String(value || '').toLowerCase().trim();
+        function showSection(name) {
+            Object.entries(sections).forEach(([key, el]) => {
+                if (!el) return;
+                if (key === name) el.classList.remove('hidden');
+                else el.classList.add('hidden');
+            });
+            navLinks.forEach(btn => {
+                btn.classList.toggle('nav-active', btn.dataset.nav === name);
+            });
+            // if entering map, ensure map is initialized & sized
+            if (name === 'map') {
+                initializeMyMap();
+                // If data has already been fetched, ensure map is rendered correctly
+                if (allFacilityData.length > 0) {
+                    showMapContainer(true);
+                    applyAllFiltersAndRedraw(); // Re-apply filters to redraw markers based on current state
+                } else {
+                    showMapContainer(false);
+                }
+            }
         }
 
+        function routeFromHash() {
+            // Get the hash, default to 'home' if empty or invalid
+            const hash = (location.hash || '#home').replace('#','');
+            const target = ['home','map','about'].includes(hash) ? hash : 'home';
+            showSection(target);
+        }
+
+        window.addEventListener('hashchange', routeFromHash);
+        navLinks.forEach(b => b.addEventListener('click', () => location.hash = '#' + b.dataset.nav));
+        goLinks.forEach(b => b.addEventListener('click', (e) => {
+            e.preventDefault();
+            location.hash = '#' + b.dataset.go;
+        }));
+
+        // keyboard shortcuts: h=home, m=map, a=about
+        document.addEventListener('keydown', (e) => {
+            if (['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName)) return;
+            if (e.key.toLowerCase() === 'h') location.hash = '#home';
+            if (e.key.toLowerCase() === 'm') location.hash = '#map';
+            if (e.key.toLowerCase() === 'a') location.hash = '#about';
+        });
+
+        /* ----------------------- CORE MAP APPLICATION LOGIC ------------------------ */
+        var myMapVariable;
+        var markerClusterGroup; 
+        var allMarkers = [];
+        var allFacilityData = [];
+        var ALL_MAGIC_VALUE = "__ALL__";
+        
+        // Marker store: to easily find a marker by its OSM element ID
+        var markerStore = {};
+
+        // City BBoxes
+        var CITIES = {
+            [ALL_MAGIC_VALUE]: { name: "All Twin Cities (ISB & RWP)", bbox: ["33.50,72.80,33.85,73.20"] },
+            "islamabad": { name: "Islamabad (ISB)", bbox: ["33.55,72.80,33.85,73.20"] },
+            "rawalpindi": { name: "Rawalpindi (RWP)", bbox: ["33.50,72.80,33.70,73.20"] }
+        };
+
+        var DESIRED_SERVICE_TAGS = ['emergency', 'operating_centre', 'beds', 'dentist'];
+
+        // Elements (Declared globally, cached in initializeMyMap)
+        var fetchButton, statusSpan, cityFilterDropdown, typeFilterDropdown, ownerFilterDropdown, featureFilterDropdown, mapPanel, splashScreen, nameSearch, sortFilterDropdown, resetFiltersButton, dataSummaryPanel;
+
+        // --- Custom Icons Setup (Leaflet) ---
+        // Define Icon Colors and Defaults based on amenity type
+        const IconConfig = {
+            hospital: { color: 'red', icon: 'fa-hospital' },
+            clinic: { color: 'blue', icon: 'fa-user-md' },
+            pharmacy: { color: 'green', icon: 'fa-pills' },
+            dentist: { color: 'purple', icon: 'fa-tooth' },
+            default: { color: 'orange', icon: 'fa-house-medical' }
+        };
+
+        function getFacilityIcon(amenityType) {
+            const normalizedType = normalizeStringValue(amenityType);
+            const config = IconConfig[normalizedType] || IconConfig.default;
+
+            return L.divIcon({
+                className: 'custom-div-icon',
+                html: `<div style="background-color: ${config.color};" class="marker-pin shadow-lg border-2 border-white rounded-full w-8 h-8 flex items-center justify-center text-white"><i class="fa ${config.icon} text-sm"></i></div>`,
+                iconSize: [30, 42],
+                iconAnchor: [15, 42],
+                popupAnchor: [0, -35]
+            });
+        }
+        
+        // helpers
+        function normalizeStringValue(value) { return String(value || '').toLowerCase().trim(); }
+
         function getFacilityOwnership(tagsObject) {
-            // Check if tagsObject is null/undefined before accessing properties
-            if (!tagsObject) return 'Unknown Ownership'; 
-            
-            // Try ownership tag first, then operator:type
+            if (!tagsObject) return 'Unknown Ownership';
             if (tagsObject.ownership && String(tagsObject.ownership).trim().length) return tagsObject.ownership;
             if (tagsObject['operator:type'] && String(tagsObject['operator:type']).trim().length) return tagsObject['operator:type'];
             return 'Unknown Ownership';
         }
 
-        // Function to check if a feature (like 'emergency') is marked 'yes'
         function checkIfFacilityHasFeature(tags, featureKey) {
             if (!tags) return false;
-            
-            var value = tags[featureKey];
-            if (!value) return false;
+            var value = tags[featureKey]; if (!value) return false;
             var normalized = normalizeStringValue(value);
             return normalized === 'yes' || normalized === 'true' || normalized === '1';
         }
 
-        // *** Event Listeners ***
-
-        fetchButton.addEventListener('click', function() {
-            fetchHealthFacilitiesData(); 
-        });
-
-        typeFilterDropdown.addEventListener('change', applyAllFiltersAndRedraw);
-        ownerFilterDropdown.addEventListener('change', applyAllFiltersAndRedraw);
-        featureFilterDropdown.addEventListener('change', applyAllFiltersAndRedraw);
-
-        // *** Main Filter Function ***
-
-        function applyAllFiltersAndRedraw() {
-            var selectedType = typeFilterDropdown.value;
-            var selectedOwner = ownerFilterDropdown.value;
-            var selectedFeature = featureFilterDropdown.value;
-
-            var filteredData = allFacilityData.filter(function(facility) {
-                // Ensure tags exist before trying to access them
-                var tags = facility.tags || {}; 
-                
-                // 1. Check Type
-                var typeMatches = (selectedType === ALL_MAGIC_VALUE) || 
-                                  (normalizeStringValue(tags.amenity) === normalizeStringValue(selectedType));
-                
-                // 2. Check Ownership (getFacilityOwnership handles null tags)
-                var ownerValue = getFacilityOwnership(tags);
-                var ownerMatches = (selectedOwner === ALL_MAGIC_VALUE) || 
-                                   (normalizeStringValue(ownerValue) === normalizeStringValue(selectedOwner));
-                
-                // 3. Check Feature
-                var featureMatches = (selectedFeature === ALL_MAGIC_VALUE) || 
-                                     checkIfFacilityHasFeature(tags, selectedFeature);
-                
-                return typeMatches && ownerMatches && featureMatches; 
-            });
-
-            plotFacilitiesOnMap(filteredData);
-            displayFacilityList(filteredData);
-
-            // Update the status message
-            var parts = [];
-            if (selectedType !== ALL_MAGIC_VALUE) parts.push(`type: ${selectedType}`);
-            if (selectedOwner !== ALL_MAGIC_VALUE) parts.push(`owner: ${selectedOwner}`);
-            if (selectedFeature !== ALL_MAGIC_VALUE) parts.push(`feature: ${selectedFeature.replace(/_/g, ' ')}`);
-            
-            var whatWeAreShowing = parts.length ? parts.join(' AND ') : 'ALL facilities';
-            setLoadingState(false, `Showing ${filteredData.length} facilities (Filter: ${whatWeAreShowing}).`);
+        function copyToClipboard(text, buttonElement) {
+            // Simple fallback copy command for iFrame environments
+            var textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                var successful = document.execCommand('copy');
+                if (successful) {
+                    const originalText = buttonElement.innerHTML;
+                    buttonElement.innerHTML = '<i class="fas fa-check mr-1"></i> Copied!';
+                    buttonElement.classList.replace('bg-blue-100', 'bg-green-100');
+                    buttonElement.classList.replace('text-blue-700', 'text-green-700');
+                    setTimeout(() => {
+                        buttonElement.innerHTML = originalText;
+                        buttonElement.classList.replace('bg-green-100', 'bg-blue-100');
+                        buttonElement.classList.replace('text-green-700', 'text-blue-700');
+                    }, 2000);
+                } else {
+                    console.error('Copy command failed.');
+                }
+            } catch (err) {
+                console.error('Unable to copy', err);
+            }
+            document.body.removeChild(textarea);
         }
 
-        // Function to handle the loading status
-        function setLoadingState(isCurrentlyLoading, message) {
-            if (isCurrentlyLoading) {
-                fetchButton.classList.add('loading-style');
+        // Status UI
+        function setLoadingState(isLoading, message) {
+            if (!fetchButton || !statusSpan) return;
+            if (isLoading) {
+                fetchButton.classList.add('loading-style', 'animate-pulse');
                 fetchButton.disabled = true;
-                statusSpan.textContent = message || "Loading, please wait...";
+                nameSearch.disabled = true; 
+                statusSpan.textContent = message || "Loading data... this may take a moment.";
+                if (dataSummaryPanel) dataSummaryPanel.classList.add('hidden'); // Hide summary while loading
             } else {
-                fetchButton.classList.remove('loading-style');
+                fetchButton.classList.remove('loading-style', 'animate-pulse');
                 fetchButton.disabled = false;
+                nameSearch.disabled = allFacilityData.length === 0; 
                 statusSpan.textContent = message || "";
             }
         }
 
-        // *** Data Fetching ***
+        // --- Highlighting Logic ---
+        function highlightFacility(elementId, isHighlighting) {
+            // Highlight list item
+            const listItem = document.querySelector(`.facility-item[data-element-id="${elementId}"]`);
+            if (listItem) {
+                listItem.classList.toggle('facility-item-highlight', isHighlighting);
+            }
+
+            // Highlight map marker (using the custom div icon element)
+            const marker = markerStore[elementId];
+            if (marker) {
+                const iconElement = marker.getElement();
+                if (iconElement) {
+                    const pin = iconElement.querySelector('.marker-pin');
+                    if (pin) {
+                        // Apply simulated hover effect via style manipulation
+                        pin.style.transform = isHighlighting ? 'translateX(-50%) rotate(45deg) scale(1.3)' : 'translateX(-50%) rotate(45deg)';
+                        pin.style.boxShadow = isHighlighting ? '0 0 15px rgba(0,0,0,0.7)' : '0 0 10px rgba(0,0,0,0.3)';
+                        pin.style.zIndex = isHighlighting ? '1000' : 'auto';
+                    }
+                }
+            }
+        }
+
+        /* ----------------------- NEW: DATA SUMMARY LOGIC ------------------------ */
+        function updateDataSummary(filteredData) {
+            const totalLoaded = allFacilityData.length;
+            const displayedCount = filteredData.length;
+            
+            if (totalLoaded === 0) {
+                dataSummaryPanel.classList.add('hidden');
+                return;
+            }
+
+            // Calculate top amenity types in displayed data
+            const typeCounts = filteredData.reduce((acc, facility) => {
+                const type = facility.tags.amenity || 'Other';
+                acc[type] = (acc[type] || 0) + 1;
+                return acc;
+            }, {});
+
+            const sortedTypes = Object.entries(typeCounts)
+                .sort(([, countA], [, countB]) => countB - countA)
+                .slice(0, 3); // Get top 3
+
+            let topTypesHtml = '';
+            if (sortedTypes.length > 0) {
+                topTypesHtml = sortedTypes.map(([type, count]) => `
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        ${type} (${count})
+                    </span>
+                `).join('');
+            } else {
+                topTypesHtml = '<span class="text-sm text-gray-500">N/A</span>';
+            }
+
+            dataSummaryPanel.innerHTML = `
+                <div class="grid grid-cols-3 gap-4 text-center">
+                    <div class="p-3 bg-blue-50 rounded-lg">
+                        <p class="text-2xl font-bold text-blue-700">${displayedCount}</p>
+                        <p class="text-xs text-gray-500 uppercase">Displayed</p>
+                    </div>
+                    <div class="p-3 bg-blue-50 rounded-lg">
+                        <p class="text-2xl font-bold text-gray-700">${totalLoaded}</p>
+                        <p class="text-xs text-gray-500 uppercase">Total Loaded</p>
+                    </div>
+                    <div class="p-3 bg-blue-50 rounded-lg">
+                        <p class="text-xl font-bold text-green-700 truncate">${sortedTypes.length > 0 ? sortedTypes[0][0] : 'N/A'}</p>
+                        <p class="text-xs text-gray-500 uppercase">Top Type</p>
+                    </div>
+                </div>
+                <div class="mt-4 border-t pt-3">
+                    <p class="text-sm font-semibold text-gray-700 mb-1">Top Amenity Types:</p>
+                    <div class="flex flex-wrap gap-2">
+                        ${topTypesHtml}
+                    </div>
+                </div>
+            `;
+            dataSummaryPanel.classList.remove('hidden');
+        }
+
+        // Filters and Sorting
+        function applyAllFiltersAndRedraw() {
+            if (!cityFilterDropdown) return;
+
+            const selectedType = typeFilterDropdown.value;
+            const selectedOwner = ownerFilterDropdown.value;
+            const selectedFeature = featureFilterDropdown.value;
+            const searchText = normalizeStringValue(nameSearch.value);
+            const selectedSort = sortFilterDropdown.value; 
+
+            let filteredData = allFacilityData.filter(function(facility) {
+                const tags = facility.tags || {};
+                const facilityName = tags.name ? normalizeStringValue(tags.name) : '';
+
+                // 1. Name Search Filter
+                const nameMatches = searchText === '' || facilityName.includes(searchText);
+
+                // 2. Type Filter
+                const typeMatches = (selectedType === ALL_MAGIC_VALUE) ||
+                                    (normalizeStringValue(tags.amenity) === normalizeStringValue(selectedType));
+
+                // 3. Ownership Filter
+                const ownerValue = getFacilityOwnership(tags);
+                const ownerMatches = (selectedOwner === ALL_MAGIC_VALUE) ||
+                                   (normalizeStringValue(ownerValue) === normalizeStringValue(selectedOwner));
+
+                // 4. Feature Filter
+                const featureMatches = (selectedFeature === ALL_MAGIC_VALUE) ||
+                                       checkIfFacilityHasFeature(tags, selectedFeature);
+
+                return nameMatches && typeMatches && ownerMatches && featureMatches;
+            });
+
+            // 5. Apply Sorting
+            filteredData.sort((a, b) => {
+                const nameA = normalizeStringValue(a.tags.name || 'z');
+                const nameB = normalizeStringValue(b.tags.name || 'z');
+                const typeA = normalizeStringValue(a.tags.amenity || 'z');
+                const typeB = normalizeStringValue(b.tags.amenity || 'z');
+
+                if (selectedSort === 'name_asc') {
+                    return nameA.localeCompare(nameB);
+                } else if (selectedSort === 'type_asc') {
+                    return typeA.localeCompare(typeB);
+                }
+                return 0; 
+            });
+
+
+            plotFacilitiesOnMap(filteredData);
+            displayFacilityList(filteredData);
+            updateDataSummary(filteredData); // NEW: Update the summary panel
+
+            var parts = [];
+            var currentCityName = CITIES[cityFilterDropdown.value].name;
+            parts.push(`city: ${currentCityName}`);
+            if (searchText !== '') parts.push(`search: "${nameSearch.value}"`);
+            if (selectedType !== ALL_MAGIC_VALUE) parts.push(`type: ${selectedType}`);
+            if (selectedOwner !== ALL_MAGIC_VALUE) parts.push(`owner: ${selectedOwner}`);
+            if (selectedFeature !== ALL_MAGIC_VALUE) parts.push(`feature: ${selectedFeature.replace(/_/g, ' ')}`);
+            parts.push(`sort: ${selectedSort.replace(/_/g, ' ')}`);
+            var filterSummary = parts.join(' AND ');
+            setLoadingState(false, `Showing ${filteredData.length} facilities (Filter: ${filterSummary}).`);
+        }
+
+        /* ----------------------- NEW: RESET FILTERS FUNCTION ------------------------ */
+        function resetAllFilters() {
+            if (typeFilterDropdown) typeFilterDropdown.value = ALL_MAGIC_VALUE;
+            if (ownerFilterDropdown) ownerFilterDropdown.value = ALL_MAGIC_VALUE;
+            if (featureFilterDropdown) featureFilterDropdown.value = ALL_MAGIC_VALUE;
+            if (nameSearch) nameSearch.value = '';
+            if (sortFilterDropdown) sortFilterDropdown.value = 'name_asc';
+
+            if (allFacilityData.length > 0) {
+                applyAllFiltersAndRedraw();
+            } else {
+                document.getElementById('facility-list-wrapper').innerHTML =
+                     `<p class="text-gray-500 p-4">Filters reset. Fetch data for a city to see results.</p>`;
+                setLoadingState(false, "Filters reset. Ready to fetch data.");
+                if (dataSummaryPanel) dataSummaryPanel.classList.add('hidden');
+            }
+        }
+
+
         function fetchHealthFacilitiesData() {
+            if (!cityFilterDropdown) return;
             setLoadingState(true, "Fetching data from Overpass API...");
 
-            // Bounding Boxes for Islamabad and Rawalpindi
-            var bbox_isb = "33.55,72.80,33.85,73.20"; 
-            var bbox_rwp = "33.50,72.80,33.70,73.20"; 
+            var selectedCityKey = cityFilterDropdown.value;
+            var selectedCityData = CITIES[selectedCityKey];
+            var boundingBoxes = selectedCityData.bbox;
+            var filterAmenityTypes = "hospital|clinic|doctors|dentist|pharmacy|veterinary|medical_centre|health_center|nursing_home|rehabilitation";
 
-            var filterAmenityTypes = "hospital|clinic|doctor|dentist|pharmacy|veterinary|medical_centre|health_center|nursing_home|rehabilitation";
+            var queryParts = boundingBoxes.map(function(bbox) {
+                return `
+                    node["amenity"~"${filterAmenityTypes}"](${bbox});
+                    way["amenity"~"${filterAmenityTypes}"](${bbox});
+                    relation["amenity"~"${filterAmenityTypes}"](${bbox});
+                `;
+            }).join('');
 
             var overpassQuery = `
                 [out:json][timeout:60];
-                (
-                    // Islamabad
-                    node["amenity"~"${filterAmenityTypes}"](${bbox_isb});
-                    way["amenity"~"${filterAmenityTypes}"](${bbox_isb});
-                    relation["amenity"~"${filterAmenityTypes}"](${bbox_isb});
-                    
-                    // Rawalpindi
-                    node["amenity"~"${filterAmenityTypes}"](${bbox_rwp});
-                    way["amenity"~"${filterAmenityTypes}"](${bbox_rwp});
-                    relation["amenity"~"${filterAmenityTypes}"](${bbox_rwp});
-                );
+                (${queryParts});
                 out body qt;
                 >;
                 out skel qt;
             `;
 
-            var queryURL =
-                "https://overpass-api.de/api/interpreter?data=" +
-                encodeURIComponent(overpassQuery);
+            var queryURL = "https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(overpassQuery);
 
             fetch(queryURL)
                 .then(function(response) {
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! Status: ${response.status}`);
-                    }
+                    if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}. The API may be busy. Try again later.`);
                     return response.json();
                 })
                 .then(function(data) {
                     var allElements = Array.isArray(data.elements) ? data.elements : [];
-                    var facilitiesWithLocation = allElements.filter(function(e) {
-                        return (e.type === 'node' || e.type === 'way' || e.type === 'relation') && (e.lat || e.center);
-                    });
+                    var facilitiesWithLocation = allElements
+                        .filter(function(e) {
+                            var hasAmenity = e.tags && e.tags.amenity;
+                            return hasAmenity && (e.type === 'node' || (e.type !== 'node' && (e.lat || (e.center && e.center.lat))));
+                        })
+                        .map(function(e) {
+                            // Harmonize location data and ensure every element has a unique key for marker tracking
+                            e._id = `${e.type}-${e.id}`;
+                            if (e.center) { e.lat = e.center.lat; e.lon = e.center.lon; delete e.center; }
+                            return e;
+                        });
 
                     if (facilitiesWithLocation.length === 0) {
                         document.getElementById('facility-list-wrapper').innerHTML =
-                            '<p>No health facilities were found in the specified area.</p>';
+                            '<p class="text-red-500">No health facilities were found in the selected area.</p>';
                         showMapContainer(false);
                         setLoadingState(false, "No results found.");
-                        disableAndClearFilterDropdowns();
+                        disableAuxiliaryFilterDropdowns();
                         return;
                     }
 
-                    allFacilityData = facilitiesWithLocation; 
-
-                    // Populate filters
-                    populateTypeDropdown(allFacilityData);
-                    populateOwnershipDropdown(allFacilityData);
-                    populateFeatureDropdown(allFacilityData);
-
+                    allFacilityData = facilitiesWithLocation;
+                    populateAuxiliaryDropdowns(allFacilityData);
                     showMapContainer(true);
                     applyAllFiltersAndRedraw();
                 })
                 .catch(function(error) {
                     console.error('Error fetching data:', error);
                     document.getElementById('facility-list-wrapper').innerHTML =
-                        `<p>Error fetching data: ${error.message}. Please check console for details.</p>`;
+                        `<p class="text-red-500 font-semibold">Error fetching data: ${error.message}. Please check the console for network details and try reloading.</p>`;
                     showMapContainer(false);
                     setLoadingState(false, "Data fetch failed.");
-                    disableAndClearFilterDropdowns();
+                    disableAuxiliaryFilterDropdowns();
                 });
         }
-        
-        function disableAndClearFilterDropdowns() {
+
+        function disableAuxiliaryFilterDropdowns() {
             typeFilterDropdown.disabled = true;
             typeFilterDropdown.innerHTML = `<option value="${ALL_MAGIC_VALUE}">All types</option>`;
             ownerFilterDropdown.disabled = true;
             ownerFilterDropdown.innerHTML = `<option value="${ALL_MAGIC_VALUE}">All ownerships</option>`;
             featureFilterDropdown.disabled = true;
             featureFilterDropdown.innerHTML = `<option value="${ALL_MAGIC_VALUE}">All features</option>`;
+            nameSearch.disabled = true; 
+            nameSearch.value = ''; 
         }
 
-        // *** Dropdown Population Functions ***
+        function populateAuxiliaryDropdowns(features) {
+            populateTypeDropdown(features);
+            populateOwnershipDropdown(features);
+            populateFeatureDropdown(features);
+            // Enable search input
+            nameSearch.disabled = features.length === 0;
+        }
+
+        function populateCityDropdown() {
+            var optionsHTML = '';
+            for (var key in CITIES) {
+                if (CITIES.hasOwnProperty(key)) {
+                    optionsHTML += `<option value="${key}">${CITIES[key].name}</option>`;
+                }
+            }
+            cityFilterDropdown.innerHTML = optionsHTML;
+            cityFilterDropdown.value = ALL_MAGIC_VALUE;
+        }
 
         function populateTypeDropdown(features) {
             var uniqueTypes = new Set();
@@ -411,7 +721,6 @@
                 var cleanType = String(amenityType || '').trim();
                 if (cleanType) uniqueTypes.add(cleanType);
             }
-
             var sortedTypes = Array.from(uniqueTypes).sort();
             var optionsHTML = `<option value="${ALL_MAGIC_VALUE}">All types</option>`;
             for (var j = 0; j < sortedTypes.length; j++) {
@@ -426,11 +735,9 @@
         function populateOwnershipDropdown(features) {
             var uniqueOwners = new Set();
             for (var k = 0; k < features.length; k++) {
-                // IMPORTANT: Pass facility.tags, which might be undefined/null
                 var owner = String(getFacilityOwnership(features[k].tags) || '').trim();
                 if (owner && owner !== 'Unknown Ownership') uniqueOwners.add(owner);
             }
-
             var sortedOwners = Array.from(uniqueOwners).sort();
             var optionsHTML = `<option value="${ALL_MAGIC_VALUE}">All ownerships</option>`;
             for (var l = 0; l < sortedOwners.length; l++) {
@@ -441,7 +748,7 @@
             ownerFilterDropdown.disabled = false;
             ownerFilterDropdown.value = ALL_MAGIC_VALUE;
         }
-        
+
         function populateFeatureDropdown(features) {
             var featuresFound = new Set();
             for (var m = 0; m < features.length; m++) {
@@ -452,105 +759,154 @@
                     }
                 }
             }
-            
             var sortedFeatures = Array.from(featuresFound).sort();
             var optionsHTML = `<option value="${ALL_MAGIC_VALUE}">All features</option>`;
             for (var p = 0; p < sortedFeatures.length; p++) {
                 var featureTag = sortedFeatures[p];
                 optionsHTML += `<option value="${featureTag}">${featureTag.replace(/_/g, ' ')}</option>`;
             }
-            
             featureFilterDropdown.innerHTML = optionsHTML;
             featureFilterDropdown.disabled = sortedFeatures.length === 0;
             featureFilterDropdown.value = ALL_MAGIC_VALUE;
         }
 
-
-        // *** Map and Address Utils ***
-
         function getLatLonFromFeature(feature) {
             if (typeof feature.lat === 'number' && typeof feature.lon === 'number') {
                 return { lat: feature.lat, lon: feature.lon };
             }
-            if (feature.center && typeof feature.center.lat === 'number' && typeof feature.center.lon === 'number') {
-                return { lat: feature.center.lat, lon: feature.center.lon };
-            }
-            return null; 
+            return null;
         }
 
         function makeNiceAddressString(tagsObject) {
-            if (!tagsObject) return 'Address data not available';
-            
+            if (!tagsObject) return 'Address data not available in map data';
             var parts = [];
-            if (tagsObject['addr:housename']) parts.push(tagsObject['addr:housename']);
-            var streetPart = [tagsObject['addr:housenumber'], tagsObject['addr:street']].filter(Boolean).join(' ');
-            if (streetPart) parts.push(streetPart);
-            if (tagsObject['addr:neighbourhood']) parts.push(tagsObject['addr:neighbourhood']);
-            if (tagsObject['addr:suburb']) parts.push(tagsObject['addr:suburb']);
-            if (tagsObject['addr:city']) parts.push(tagsObject['addr:city']);
-            if (tagsObject['addr:postcode']) parts.push(tagsObject['addr:postcode']);
-            if (tagsObject['addr:full']) parts.push(tagsObject['addr:full']);
-            return parts.length ? parts.join(', ') : 'Address not available in map data';
+            const keys = ['addr:housename','addr:street','addr:neighbourhood','addr:suburb','addr:city','addr:postcode','addr:full'];
+            keys.forEach(key => {
+                if (tagsObject[key] && tagsObject[key].trim()) {
+                    let part = tagsObject[key].trim();
+                    if (!parts.includes(part)) parts.push(part);
+                }
+            });
+            return parts.length ? parts.join(', ') : 'Address not specified in map data';
         }
 
         function displayFacilityList(data) {
             var resultsDiv = document.getElementById('facility-list-wrapper');
-            resultsDiv.innerHTML = ''; 
-
+            resultsDiv.innerHTML = '';
             if (data.length === 0) {
-                resultsDiv.innerHTML = '<p>No facilities match your current filters.</p>';
+                resultsDiv.innerHTML = '<p class="text-red-500 font-semibold p-4">No facilities match your current filters in this city selection.</p>';
                 return;
             }
-
             data.forEach(function(feature) {
                 var tags = feature.tags || {};
                 var facilityName = tags.name || 'Unnamed Facility';
                 var facilityType = tags.amenity || 'Unknown Type';
+                var facilityOwner = getFacilityOwnership(tags);
+                var address = makeNiceAddressString(tags);
+                var isEmergency = checkIfFacilityHasFeature(tags, 'emergency');
                 
+                var elementId = feature._id; 
+                const location = getLatLonFromFeature(feature);
+                const coords = location ? `${location.lat.toFixed(6)}, ${location.lon.toFixed(6)}` : 'N/A';
+
                 var div = document.createElement('div');
-                div.className = 'facility-item';
+                div.className = 'facility-item bg-white p-4 mb-3 rounded-lg shadow-md border-l-4 ' +
+                                (isEmergency ? 'border-red-500' : 'border-blue-500') +
+                                ' hover:shadow-xl transition duration-300 cursor-pointer';
+                div.dataset.elementId = elementId; // Store element ID for click lookup
+                
                 div.innerHTML = `
-                    <h3>${facilityName}</h3>
-                    <p><strong>Type:</strong> ${facilityType}</p>
-                    <p>Details in map pin.</p>
+                    <h3 class="text-lg font-semibold text-blue-700 leading-tight">${facilityName}</h3>
+                    <p class="text-sm text-gray-600">
+                        <strong class="font-medium">Type:</strong> ${facilityType} 
+                        <span class="ml-4 font-medium">Owner:</span> ${facilityOwner}
+                        ${isEmergency ? '<span class="ml-4 px-2 py-0.5 bg-red-100 text-red-700 text-xs font-bold rounded-full">Emergency</span>' : ''}
+                    </p>
+                    <p class="text-xs text-gray-500 mt-1"><strong class="font-medium">Location:</strong> ${address}</p>
+                    
+                    <!-- Copy Coordinates Button and OSM ID -->
+                    <div class="flex justify-between items-center mt-2 pt-2 border-t border-gray-100">
+                        <span class="text-xs text-gray-400 italic">OSM ID: ${feature.id} (${feature.type.substring(0,1).toUpperCase()})</span>
+                        <button data-coords="${coords}"
+                                class="copy-coords-btn text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 transition"
+                                title="Copy coordinates: ${coords}">
+                            <i class="fas fa-copy mr-1"></i> Copy Coords
+                        </button>
+                    </div>
                 `;
+                
+                // Add click listener to zoom to map
+                div.addEventListener('click', function() {
+                    if (markerStore[elementId] && myMapVariable) {
+                        location.hash = '#map'; // Switch to map view
+                        myMapVariable.setView(markerStore[elementId].getLatLng(), 15);
+                        markerStore[elementId].openPopup();
+                    }
+                });
+
+                // Add mouse events for highlighting
+                div.addEventListener('mouseenter', function() { highlightFacility(elementId, true); });
+                div.addEventListener('mouseleave', function() { highlightFacility(elementId, false); });
+
+                // Add event listener for the copy button
+                div.querySelector('.copy-coords-btn').addEventListener('click', function(e) {
+                    e.stopPropagation(); // Prevent the list item click event (zoom to map) from firing
+                    copyToClipboard(this.dataset.coords, this);
+                });
+
+
                 resultsDiv.appendChild(div);
             });
         }
 
         function plotFacilitiesOnMap(data) {
-            removeOldMarkers(); 
-            var mapBounds = L.latLngBounds([]); 
-
+            markerClusterGroup.clearLayers(); // Clear existing cluster markers
+            markerStore = {}; // Reset marker store
+            var mapBounds = L.latLngBounds([]);
+            
             data.forEach(function(feature) {
                 var location = getLatLonFromFeature(feature);
-                if (!location) return; 
-
+                if (!location) return;
+                
+                var elementId = feature._id;
                 var tags = feature.tags || {};
                 var name = tags.name || 'Unnamed Facility';
                 var type = tags.amenity || 'Unknown';
                 var address = makeNiceAddressString(tags);
                 var ownership = getFacilityOwnership(tags);
-                
-                var featuresList = DESIRED_SERVICE_TAGS.filter(function(tag) {
-                    return checkIfFacilityHasFeature(tags, tag);
-                }).map(function(t) {
-                    return t.replace(/_/g, ' ');
-                }).join(', ');
+
+                var featuresList = DESIRED_SERVICE_TAGS
+                    .filter(tag => checkIfFacilityHasFeature(tags, tag))
+                    .map(t => t.replace(/_/g,' '))
+                    .join(', ');
 
                 var popupContent = `
-                    <strong>${name}</strong><br/>
-                    Type: ${type}<br/>
-                    Owner: ${ownership}<br/>
-                    ${featuresList ? `Special Features: ${featuresList}<br/>` : ''}
-                    Address: ${address}
+                    <div class="font-sans text-sm">
+                        <strong class="text-lg text-blue-700">${name}</strong><br/>
+                        <span class="font-semibold">Type:</span> ${type}<br/>
+                        <span class="font-semibold">Owner:</span> ${ownership}<br/>
+                        ${featuresList ? `<span class="font-semibold text-green-700">Services:</span> ${featuresList}<br/>` : ''}
+                        <span class="font-semibold">Address:</span> ${address}
+                    </div>
                 `;
+                
+                // Get custom icon based on amenity type
+                const icon = getFacilityIcon(type);
 
-                var marker = L.marker([location.lat, location.lon]).addTo(myMapVariable)
+                var marker = L.marker([location.lat, location.lon], { icon: icon })
                     .bindPopup(popupContent);
+                
+                // Store the elementId on the marker object itself for easy lookup
+                marker.elementId = elementId; 
 
+                // Add mouse events to marker for highlighting list item
+                marker.on('mouseover', function(e) { highlightFacility(this.elementId, true); });
+                marker.on('mouseout', function(e) { highlightFacility(this.elementId, false); });
+
+                markerClusterGroup.addLayer(marker); // Add to cluster group
                 allMarkers.push(marker);
-                mapBounds.extend([location.lat, location.lon]); 
+                markerStore[elementId] = marker; // Store the marker for easy lookup
+                mapBounds.extend([location.lat, location.lon]);
             });
 
             if (mapBounds.isValid()) {
@@ -560,39 +916,95 @@
             }
         }
 
-        function removeOldMarkers() {
-            allMarkers.forEach(function(m) {
-                m.remove(); 
-            });
-            allMarkers = []; 
-        }
-
         function initializeMyMap() {
+            // Cache DOM elements for the map section
+            fetchButton = document.getElementById('fetchDataButton');
+            statusSpan = document.getElementById('status-message');
+            cityFilterDropdown = document.getElementById('cityFilter');
+            typeFilterDropdown = document.getElementById('typeFilter');
+            ownerFilterDropdown = document.getElementById('ownerFilter');
+            featureFilterDropdown = document.getElementById('featureFilter');
+            mapPanel = document.getElementById('control-and-map-area');
+            splashScreen = document.getElementById('initial-splash-screen');
+            nameSearch = document.getElementById('nameSearch'); 
+            sortFilterDropdown = document.getElementById('sortFilter'); 
+            resetFiltersButton = document.getElementById('resetFiltersButton'); // NEW
+            dataSummaryPanel = document.getElementById('data-summary-panel'); // NEW
+
+            if (!document.getElementById('the-map-container') || !cityFilterDropdown) return;
+
             if (!myMapVariable) {
-                myMapVariable = L.map('the-map-container').setView([33.68, 73.05], 11); 
-                
+                myMapVariable = L.map('the-map-container').setView([33.68, 73.05], 11);
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                    maxZoom: 19
                 }).addTo(myMapVariable);
+                L.control.attribution({ prefix: '<span class="text-xs text-gray-500">Health Facilities Dashboard</span>' }).addTo(myMapVariable);
                 
-                L.control.attribution({
-                    prefix: '<div style="font-size: 10px; color: #888;">Map View: Health Facilities Dashboard</div>'
-                }).addTo(myMapVariable);
+                // Initialize Marker Cluster Group
+                markerClusterGroup = L.markerClusterGroup({ chunkedLoading: true });
+                myMapVariable.addLayer(markerClusterGroup);
+            }
+
+            // Bind event listeners only once
+            if (!fetchButton.dataset.bound) {
+                fetchButton.addEventListener('click', fetchHealthFacilitiesData);
+                resetFiltersButton.addEventListener('click', resetAllFilters); // NEW Reset button handler
+                
+                cityFilterDropdown.addEventListener('change', function() {
+                    allFacilityData = [];
+                    markerClusterGroup.clearLayers();
+                    disableAuxiliaryFilterDropdowns();
+                    document.getElementById('facility-list-wrapper').innerHTML =
+                        `<p class="text-yellow-600 font-semibold p-4">City changed. Click "Fetch Data / Apply City Filter" to load new data for ${CITIES[cityFilterDropdown.value].name}.</p>`;
+                    setLoadingState(false, `Ready to fetch data for ${CITIES[cityFilterDropdown.value].name}.`);
+                    showMapContainer(false);
+                    if (dataSummaryPanel) dataSummaryPanel.classList.add('hidden'); // Hide summary
+                });
+                
+                // Filter events
+                nameSearch.addEventListener('input', applyAllFiltersAndRedraw);
+                typeFilterDropdown.addEventListener('change', applyAllFiltersAndRedraw);
+                ownerFilterDropdown.addEventListener('change', applyAllFiltersAndRedraw);
+                featureFilterDropdown.addEventListener('change', applyAllFiltersAndRedraw);
+                sortFilterDropdown.addEventListener('change', applyAllFiltersAndRedraw); 
+                
+                fetchButton.dataset.bound = "1";
+            }
+
+            // populate city on first visit
+            if (!cityFilterDropdown.dataset.populated) {
+                populateCityDropdown();
+                cityFilterDropdown.dataset.populated = "1";
+                disableAuxiliaryFilterDropdowns();
+                setLoadingState(false, "Select a city and click 'Fetch Data' to begin mapping.");
             }
         }
 
         function showMapContainer(shouldShow) {
             var mapContainerDiv = document.getElementById('the-map-container');
+            var splashScreenDiv = document.getElementById('initial-splash-screen');
+            var mapPanel = document.getElementById('control-and-map-area');
+            if (!mapContainerDiv || !splashScreenDiv || !mapPanel) return;
+
             if (shouldShow) {
-                mapContainerDiv.style.display = 'block'; 
-                initializeMyMap(); 
-                if(myMapVariable) {
-                    setTimeout(function() { myMapVariable.invalidateSize(); }, 0);
-                }
+                mapContainerDiv.style.display = 'block';
+                splashScreenDiv.style.display = 'none';
+                mapPanel.classList.add('active-map');
+                // Ensure map size is correct after container is shown
+                if (myMapVariable) setTimeout(() => myMapVariable.invalidateSize(), 0);
             } else {
-                mapContainerDiv.style.display = 'none'; 
+                mapContainerDiv.style.display = 'none';
+                splashScreenDiv.style.display = 'flex';
+                mapPanel.classList.remove('active-map');
             }
         }
+
+        // Boot
+        document.addEventListener('DOMContentLoaded', () => {
+            // Set initial state based on hash or default to home
+            routeFromHash(); 
+        });
     </script>
 </body>
 </html>
